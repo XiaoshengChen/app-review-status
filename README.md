@@ -42,7 +42,7 @@ An individual key inherits your user’s app access and permissions. It does not
 ### 1. Clone the skill
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/app-review-status.git
+git clone https://github.com/XiaoshengChen/app-review-status.git
 cd app-review-status
 ```
 
