@@ -39,16 +39,42 @@ An individual key inherits your user’s app access and permissions. It does not
 
 ## Five-minute setup
 
-### 1. Clone the skill
+### 1. Install the skill
+
+The easiest Codex path is to ask Codex:
+
+```text
+Install the skill from https://github.com/XiaoshengChen/app-review-status
+```
+
+Codex installs GitHub-hosted skills into its skills directory. Start a new task after installation so the skill is available.
+
+Manual installation:
 
 ```bash
 git clone https://github.com/XiaoshengChen/app-review-status.git
 cd app-review-status
+mkdir -p ~/.codex/skills
+ln -s "$(pwd)" ~/.codex/skills/app-review-status
 ```
 
 Node.js 18 or newer is required.
 
-### 2. Create a private configuration file
+### 2. Ask the skill to guide first-time setup
+
+```text
+Use $app-review-status to check my review status. I do not have an API key yet.
+```
+
+The skill will explain where to generate an individual or team API key, which non-secret values are needed, how to protect the `.p8` file, and how to create a private configuration. It will never ask you to paste the private-key contents.
+
+You can run the fictional offline demo while obtaining credentials:
+
+```bash
+node scripts/app-review-status.mjs --fixture references/demo-response.json
+```
+
+### 3. Create a private configuration file
 
 Keep this file outside the repository. For an individual key:
 
@@ -75,7 +101,7 @@ For a team key, add the Issuer ID:
 
 `appIds` is optional. If omitted, the script checks every app visible to the key.
 
-### 3. Protect the private key
+### 4. Protect the private key
 
 On macOS or Linux:
 
@@ -83,16 +109,10 @@ On macOS or Linux:
 chmod 600 /absolute/path/to/AuthKey_YOUR_KEY_ID.p8
 ```
 
-### 4. Run the check
+### 5. Run the check
 
 ```bash
 node scripts/app-review-status.mjs --config /absolute/path/to/config.json
-```
-
-For a no-credentials demo:
-
-```bash
-node scripts/app-review-status.mjs --fixture references/demo-response.json
 ```
 
 ## Example result
@@ -125,11 +145,14 @@ node scripts/app-review-status.mjs --config /absolute/path/to/config.json --all-
 
 ## Install as an Agent Skill
 
-Place or symlink the cloned repository in the skill directory used by your agent host. For Codex:
+For Codex, the installation command above places or symlinks the repository in `~/.codex/skills/app-review-status`. If you cloned it elsewhere, run:
 
 ```bash
+mkdir -p ~/.codex/skills
 ln -s "$(pwd)" ~/.codex/skills/app-review-status
 ```
+
+Start a new Codex task after installation so it can discover the skill.
 
 Then ask:
 
@@ -166,7 +189,7 @@ app-review-status/
 
 - Read-only: the implementation contains no POST, PATCH, PUT, or DELETE requests.
 - Stateless: it does not create a history or status cache.
-- Local credentials: the `.p8` key stays on the machine; only the ES256 signature is sent as part of authentication.
+- Local credentials: the `.p8` key stays on the machine; only a short-lived signed JWT is sent for authentication.
 - Short-lived JWT: the generated token expires after 10 minutes and exists only in process memory.
 - Private-key permission check: on macOS and Linux, the script refuses group- or world-readable key files.
 - Credential-safe examples: the repository contains placeholders and synthetic fixtures only.
