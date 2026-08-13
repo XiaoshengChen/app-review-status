@@ -1,0 +1,4 @@
+interface:
+  display_name: "App Review Status"
+  short_description: "Check current App Store review status through the official API"
+  default_prompt: "Use $app-review-status to check the current App Store Connect review status for my apps."
