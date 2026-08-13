@@ -6,9 +6,22 @@ import os from "node:os";
 import path from "node:path";
 
 const API_ORIGIN = "https://api.appstoreconnect.apple.com";
+const SETUP_GUIDE = "https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/";
 
-function fail(message, exitCode = 1) {
+function setupHint() {
+  return `First-time setup:
+  1. Get an App Store Connect API key: ${SETUP_GUIDE}
+  2. Download the .p8 file and keep it private; never paste its contents into a prompt.
+  3. Create a private config from references/config.individual.example.json or references/config.example.json.
+  4. Run this command again with --config /absolute/path/to/config.json.
+
+Try the fictional offline demo now:
+  node scripts/app-review-status.mjs --fixture references/demo-response.json`;
+}
+
+function fail(message, exitCode = 1, options = {}) {
   process.stderr.write(`app-review-status: ${message}\n`);
+  if (options.showSetup) process.stderr.write(`\n${setupHint()}\n`);
   process.exit(exitCode);
 }
 
@@ -19,11 +32,11 @@ function expandPath(input) {
   return path.resolve(input);
 }
 
-function readJson(filePath, label) {
+function readJson(filePath, label, options = {}) {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
   } catch (error) {
-    fail(`cannot read ${label} at ${filePath}: ${error.message}`);
+    fail(`cannot read ${label} at ${filePath}: ${error.message}`, 1, options);
   }
 }
 
@@ -39,7 +52,7 @@ function parseArgs(argv) {
     else fail(`unknown argument: ${token}`);
   }
   if (!args.help && !args.configPath && !args.fixturePath) {
-    fail("pass --config for a live check or --fixture for an offline test");
+    fail("no private config was provided", 1, { showSetup: true });
   }
   if (!['markdown', 'json'].includes(args.format)) fail("--format must be markdown or json");
   return args;
@@ -57,6 +70,9 @@ Options:
   --fixture PATH      Offline fixture; never calls Apple
   --format TYPE       markdown (default) or json
   --all-versions      Return all versions instead of the latest per platform
+
+First-time setup:
+  ${SETUP_GUIDE}
 `);
 }
 
@@ -66,8 +82,16 @@ function base64url(value) {
 
 function makeJwt(config) {
   const keyPath = expandPath(config.privateKeyPath);
-  if (!keyPath) fail("config.privateKeyPath is required");
-  if (!config.keyId) fail("config.keyId is required");
+  if (!keyPath) fail("config.privateKeyPath is required", 1, { showSetup: true });
+  if (!config.keyId) fail("config.keyId is required", 1, { showSetup: true });
+
+  const keyType = config.keyType || (config.issuerId ? "team" : "individual");
+  if (!['team', 'individual'].includes(keyType)) {
+    fail("config.keyType must be team or individual", 1, { showSetup: true });
+  }
+  if (keyType === "team" && !config.issuerId) {
+    fail("config.issuerId is required for a team key", 1, { showSetup: true });
+  }
 
   let privateKey;
   let stat;
@@ -75,15 +99,11 @@ function makeJwt(config) {
     stat = fs.statSync(keyPath);
     privateKey = fs.readFileSync(keyPath, "utf8");
   } catch (error) {
-    fail(`cannot read private key at ${keyPath}: ${error.message}`);
+    fail(`cannot read private key at ${keyPath}: ${error.message}`, 1, { showSetup: true });
   }
   if (process.platform !== "win32" && (stat.mode & 0o077) !== 0) {
     fail(`private key permissions are too broad; run chmod 600 ${keyPath}`);
   }
-
-  const keyType = config.keyType || (config.issuerId ? "team" : "individual");
-  if (!['team', 'individual'].includes(keyType)) fail("config.keyType must be team or individual");
-  if (keyType === "team" && !config.issuerId) fail("config.issuerId is required for a team key");
 
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(JSON.stringify({ alg: "ES256", kid: config.keyId, typ: "JWT" }));
@@ -220,7 +240,7 @@ async function main() {
     const fixture = readJson(expandPath(args.fixturePath), "fixture");
     observations = fixture.observations || [];
   } else {
-    const config = readJson(expandPath(args.configPath), "config");
+    const config = readJson(expandPath(args.configPath), "config", { showSetup: true });
     try {
       observations = await collectLive(config);
     } catch (error) {
