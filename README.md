@@ -9,56 +9,59 @@ It answers questions such as:
 - Was the version rejected?
 - Is the version ready for sale or distribution?
 
-The public version is intentionally stateless. It does **not** create daily reports, schedule jobs, store status history, estimate review time, control a browser, or modify App Store Connect.
+![Fictional example of an App Store Connect review-status result](assets/example-output.svg)
 
-## How it works
+The public version is intentionally stateless. It reads the current status, prints the result, and exits. It does not schedule jobs, store history, estimate review time, open a browser, or modify App Store Connect.
 
-1. The script reads a private local configuration file containing only the API-key type, identifiers, the local `.p8` path, and an optional list of App IDs.
-2. It creates a short-lived JSON Web Token in memory:
-   - Header: `alg=ES256`, `kid=<key id>`, `typ=JWT`.
-   - Team-key payload: `iss`, `iat`, `exp`, and `aud=appstoreconnect-v1`.
-   - Individual-key payload: `sub=user`, `iat`, `exp`, and `aud=appstoreconnect-v1`.
-3. It signs the JWT with the local `.p8` private key using ES256. The key and token are never printed or written to disk.
-4. It performs only authenticated `GET` requests:
-   - `GET /v1/apps` or `GET /v1/apps/{id}` to resolve accessible apps.
-   - `GET /v1/apps/{id}/appStoreVersions` to read version, platform, creation date, and current state.
-5. By default, it selects the newest App Store version for each app/platform pair and renders a Markdown table. `--all-versions` returns every version and `--format json` returns structured JSON.
+## Get an App Store Connect API key
 
-The status comes from Apple’s `appVersionState` field, with `appStoreState` used only as a compatibility fallback.
+Start at [App Store Connect](https://appstoreconnect.apple.com/) and choose one of the following key types. Apple’s [official API setup guide](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/) documents both flows.
 
-## Repository layout
+### Option A: Individual API key (recommended for personal use)
 
-```text
-app-review-status/
-├── SKILL.md
-├── agents/openai.yaml
-├── scripts/app-review-status.mjs
-└── references/
-    ├── config.example.json
-    ├── config.individual.example.json
-    ├── demo-response.json
-    ├── limitations.md
-    └── setup.md
+1. Sign in to App Store Connect.
+2. Click your username in the top-right corner, then **Edit Profile**.
+3. Under **Individual API Key**, click **Generate Key**.
+4. Download the `.p8` file and note the **Key ID**.
+
+An individual key inherits your user’s app access and permissions. It does not require an Issuer ID. Apple allows one active individual key per user.
+
+### Option B: Team API key
+
+1. In App Store Connect, open **Users and Access** → **Integrations**.
+2. If API access has not been enabled, the Account Holder must first click **Request Access** and complete Apple’s approval flow.
+3. Open **Team Keys** and click **Generate API Key** (or the `+` button).
+4. Use any clear reference name, such as `app-review-status-readonly`.
+5. Choose the least-privileged role that can view the intended apps, then generate the key.
+6. Copy the **Issuer ID** and **Key ID**, and download the `.p8` file.
+
+> Apple only lets you download a private API key once. Store it securely. Never commit the `.p8` file, a generated JWT, or a real configuration file to Git.
+
+## Five-minute setup
+
+### 1. Clone the skill
+
+```bash
+git clone https://github.com/YOUR_GITHUB_USERNAME/app-review-status.git
+cd app-review-status
 ```
 
-## Requirements
+Node.js 18 or newer is required.
 
-- Node.js 18+
-- An App Store Connect API key
-- A `.p8` private key downloaded from App Store Connect
+### 2. Create a private configuration file
 
-Apple supports two key types:
+Keep this file outside the repository. For an individual key:
 
-- **Team key:** requires an Issuer ID and uses the role assigned to that key.
-- **Individual key:** does not use an Issuer ID and inherits the associated user’s app access and permissions.
+```json
+{
+  "keyType": "individual",
+  "keyId": "YOUR_KEY_ID",
+  "privateKeyPath": "/absolute/path/to/AuthKey_YOUR_KEY_ID.p8",
+  "appIds": ["YOUR_APP_ID"]
+}
+```
 
-Use the least-privileged role that can read the apps you want to inspect.
-
-## Configure
-
-Keep configuration and private keys outside the repository.
-
-For a team key, start from `references/config.example.json`:
+For a team key, add the Issuer ID:
 
 ```json
 {
@@ -70,65 +73,31 @@ For a team key, start from `references/config.example.json`:
 }
 ```
 
-For an individual key, use `references/config.individual.example.json` and omit `issuerId`:
-
-```json
-{
-  "keyType": "individual",
-  "keyId": "YOUR_KEY_ID",
-  "privateKeyPath": "/absolute/path/to/AuthKey_YOUR_KEY_ID.p8",
-  "appIds": ["YOUR_APP_ID"]
-}
-```
-
 `appIds` is optional. If omitted, the script checks every app visible to the key.
 
-On macOS or Linux, restrict the key file:
+### 3. Protect the private key
+
+On macOS or Linux:
 
 ```bash
 chmod 600 /absolute/path/to/AuthKey_YOUR_KEY_ID.p8
 ```
 
-## Run directly
+### 4. Run the check
 
 ```bash
 node scripts/app-review-status.mjs --config /absolute/path/to/config.json
 ```
 
-Machine-readable output:
-
-```bash
-node scripts/app-review-status.mjs --config /absolute/path/to/config.json --format json
-```
-
-Return all App Store versions instead of only the newest per platform:
-
-```bash
-node scripts/app-review-status.mjs --config /absolute/path/to/config.json --all-versions
-```
-
-Offline demo, with no Apple request:
+For a no-credentials demo:
 
 ```bash
 node scripts/app-review-status.mjs --fixture references/demo-response.json
 ```
 
-## Install as an Agent Skill
+## Example result
 
-Clone the repository, then place or symlink it in the skill directory used by your agent host. For Codex:
-
-```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/app-review-status.git
-ln -s "$(pwd)/app-review-status" ~/.codex/skills/app-review-status
-```
-
-Then ask:
-
-```text
-Use $app-review-status to check the current App Store Connect review status with config /absolute/path/to/config.json.
-```
-
-## Example output
+The image above and the output below use fictional data only:
 
 ```markdown
 # App Store Connect Review Status
@@ -140,11 +109,64 @@ Checked: 2026-01-15T09:00:00.000Z
 | Example Reader | 1.2.0 | IOS | `WAITING_FOR_REVIEW` |
 ```
 
+## Other output options
+
+Machine-readable JSON:
+
+```bash
+node scripts/app-review-status.mjs --config /absolute/path/to/config.json --format json
+```
+
+Return every App Store version instead of only the newest per platform:
+
+```bash
+node scripts/app-review-status.mjs --config /absolute/path/to/config.json --all-versions
+```
+
+## Install as an Agent Skill
+
+Place or symlink the cloned repository in the skill directory used by your agent host. For Codex:
+
+```bash
+ln -s "$(pwd)" ~/.codex/skills/app-review-status
+```
+
+Then ask:
+
+```text
+Use $app-review-status to check the current App Store Connect review status with config /absolute/path/to/config.json.
+```
+
+## How it works
+
+1. The script reads a private local configuration containing the key type, identifiers, `.p8` path, and optional App IDs.
+2. It creates a short-lived JSON Web Token in memory and signs it locally with ES256.
+3. It performs authenticated `GET` requests to resolve accessible apps and read their App Store versions.
+4. It selects the newest version for each app/platform pair and renders Markdown or JSON.
+
+The status comes from Apple’s `appVersionState` field, with `appStoreState` used only as a compatibility fallback. The private key and JWT are never printed or written to disk.
+
+## Repository layout
+
+```text
+app-review-status/
+├── SKILL.md
+├── agents/openai.yaml
+├── assets/example-output.svg
+├── scripts/app-review-status.mjs
+└── references/
+    ├── config.example.json
+    ├── config.individual.example.json
+    ├── demo-response.json
+    ├── limitations.md
+    └── setup.md
+```
+
 ## Security properties
 
 - Read-only: the implementation contains no POST, PATCH, PUT, or DELETE requests.
 - Stateless: it does not create a history or status cache.
-- Local credentials: the `.p8` key never leaves the machine except for the ES256 signature created for Apple authentication.
+- Local credentials: the `.p8` key stays on the machine; only the ES256 signature is sent as part of authentication.
 - Short-lived JWT: the generated token expires after 10 minutes and exists only in process memory.
 - Private-key permission check: on macOS and Linux, the script refuses group- or world-readable key files.
 - Credential-safe examples: the repository contains placeholders and synthetic fixtures only.
@@ -154,11 +176,11 @@ Checked: 2026-01-15T09:00:00.000Z
 - Apple returns the current state, not the exact time the version entered that state.
 - The API does not return the App Review conversation or detailed rejection reason.
 - This project does not calculate queue duration or approval ETA.
-- This project does not schedule recurring checks or send daily reports.
 - Access depends on the apps and role associated with the API key.
 
 ## Official references
 
+- [App Store Connect API setup and key generation](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/)
 - [Creating API Keys for App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api)
 - [Generating Tokens for API Requests](https://developer.apple.com/documentation/appstoreconnectapi/generating-tokens-for-api-requests)
 - [List all App Store versions for an app](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-appstoreversions)
