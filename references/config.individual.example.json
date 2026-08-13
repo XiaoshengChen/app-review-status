@@ -1,0 +1,8 @@
+{
+  "keyType": "individual",
+  "keyId": "YOUR_KEY_ID",
+  "privateKeyPath": "/absolute/path/to/AuthKey_YOUR_KEY_ID.p8",
+  "appIds": [
+    "YOUR_APP_ID"
+  ]
+}
