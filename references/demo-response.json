@@ -1,0 +1,24 @@
+{
+  "observations": [
+    {
+      "appId": "1234567890",
+      "appName": "Example Reader",
+      "bundleId": "com.example.reader",
+      "versionId": "example-version-id",
+      "version": "1.2.0",
+      "platform": "IOS",
+      "state": "WAITING_FOR_REVIEW",
+      "createdDate": "2026-01-15T08:30:00Z"
+    },
+    {
+      "appId": "1234567890",
+      "appName": "Example Reader",
+      "bundleId": "com.example.reader",
+      "versionId": "older-version-id",
+      "version": "1.1.0",
+      "platform": "IOS",
+      "state": "READY_FOR_SALE",
+      "createdDate": "2025-12-01T08:30:00Z"
+    }
+  ]
+}
