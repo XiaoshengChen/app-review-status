@@ -1,5 +1,7 @@
 # App Review Status Skill
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 A small, read-only Agent Skill that checks the current review state of App Store versions through Apple’s official App Store Connect API.
 
 It answers questions such as:
